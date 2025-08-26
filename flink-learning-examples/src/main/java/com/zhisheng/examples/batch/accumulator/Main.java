@@ -16,29 +16,43 @@ import org.apache.flink.util.Collector;
 public class Main {
 
     public static void main(String[] args) throws Exception {
+        // 从程序参数中创建 ParameterTool 对象，用于获取配置参数
         final ParameterTool params = ParameterTool.fromArgs(args);
+        // 获取 Flink 的执行环境
         final ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
+        // 设置全局作业参数
         env.getConfig().setGlobalJobParameters(params);
 
+        // 从预定义的 WORDS 数组创建数据源
         DataSource<String> dataSource = env.fromElements(WORDS);
 
+        // 对数据源进行词频统计处理
         dataSource.flatMap(new FlatMapFunction<String, Tuple2<String, Integer>>() {
             @Override
             public void flatMap(String line, Collector<Tuple2<String, Integer>> out) throws Exception {
+                // 使用非单词字符分割输入行
                 String[] words = line.split("\\W+");
+                // 遍历每个单词，输出(单词,1)的二元组
                 for (String word : words) {
                     out.collect(new Tuple2<>(word, 1));
                 }
             }
         })
+                // 按照单词（元组的第一个元素）分组
                 .groupBy(0)
+                // 对相同单词的计数（元组的第二个元素）求和
                 .sum(1)
+                // 按照计数进行全局降序排序
+                .sortPartition(1, org.apache.flink.api.common.operators.Order.DESCENDING)
+                .setParallelism(1)
+                // 打印结果
                 .print();
 
+        // 计算数据源中的总行数
         long count = dataSource.count();
+        // 打印总行数
         System.out.println(count);
     }
-
 
     private static final String[] WORDS = new String[]{
             "To be, or not to be,--that is the question:--",
